@@ -46,6 +46,9 @@ export default function App({ uid, workspace, user }: { uid: string | null; work
   const [range, setRange] = useState('Today')
   const [venue, setVenue] = useState('My Venue')
   const [accountOpen, setAccountOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [seenNotifications, setSeenNotifications] = useState<string[]>([])
+  const notificationsRef = useRef<HTMLDivElement>(null)
   const [editingProfile, setEditingProfile] = useState(false)
   const [profileName, setProfileName] = useState(user.displayName || '')
   const [visibleName, setVisibleName] = useState(user.displayName || '')
@@ -61,7 +64,10 @@ export default function App({ uid, workspace, user }: { uid: string | null; work
     document.addEventListener('mousedown', close); document.addEventListener('keydown', escape)
     return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape) }
   }, [accountOpen])
-  const accountName = visibleName.trim() || user.email?.split('@')[0] || 'Account'
+  const accountName = visibleName.trim() || user.email?.split('@')[0] || 'Set your name'
+  const roleLabel = workspace.role.charAt(0).toUpperCase() + workspace.role.slice(1)
+  const nameParts = accountName.trim().split(/\s+/)
+  const compactName = accountName.length > 24 ? `${nameParts[0]} ${nameParts.length > 1 ? nameParts[nameParts.length-1][0] + '.' : ''}`.trim() : accountName
   const initials = accountName.split(/\s+/).slice(0,2).map(part=>part[0]?.toUpperCase() || '').join('')
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -78,9 +84,9 @@ export default function App({ uid, workspace, user }: { uid: string | null; work
     catch (err) { setProfileError(err instanceof Error ? err.message : 'Could not sign out.') }
   }
   const accountMenu = <div className="account-menu" role="region" aria-label="Account options">
-    <strong>{accountName}</strong>
+    <strong className="account-fullname">{accountName}</strong>
     <span className="account-email">{user.email || 'No email available'}</span>
-    <span className="account-role">Role: {workspace.role.charAt(0).toUpperCase()+workspace.role.slice(1)}</span>
+    <span className="account-role">{roleLabel} · {workspace.venueId ? 'Restaurant workspace' : 'Personal workspace'}</span>
     {editingProfile ? <form onSubmit={saveProfile} className="account-edit-form">
       <label htmlFor="profile-display-name">Display name</label>
       <input id="profile-display-name" maxLength={60} autoComplete="name" required value={profileName} onChange={e=>setProfileName(e.target.value)} />
@@ -98,6 +104,15 @@ export default function App({ uid, workspace, user }: { uid: string | null; work
   const periodOrders = orders.filter(order=>isWithin(order.createdAt,range)&&order.status!=='Cancelled')
   const totalSales = periodOrders.reduce((sum, order) => sum + order.total, 0)
   const lowStock = stock.filter(item => item.qty < item.min)
+  const notifications = [
+    ...(isManager ? lowStock : []).map(item => ({ id: `stock:${item.name}:${item.qty}`, title: `${item.name} needs restocking`, detail: `${item.qty} ${item.unit} available · reorder at ${item.min}`, destination: 'Inventory' })),
+    ...orders.filter(order => order.status === 'New' || order.status === 'Ready').map(order => ({ id: `order:${order.id}:${order.status}`, title: `Order #${order.id} · ${order.status}`, detail: `Table ${order.table} · UGX ${Number(order.total || 0).toLocaleString('en-UG')}`, destination: 'Orders' }))
+  ].slice(0,30)
+  const notificationStorageKey = `br-notifications:${uid}:${workspace.venueId || 'personal'}`
+  useEffect(() => { try { const data = JSON.parse(localStorage.getItem(notificationStorageKey) || '[]'); setSeenNotifications(Array.isArray(data) ? data.filter((x): x is string => typeof x === 'string') : []) } catch { setSeenNotifications([]) } }, [notificationStorageKey])
+  const unreadCount = notifications.filter(n => !seenNotifications.includes(n.id)).length
+  const acknowledge = (ids: string[]) => { const next = Array.from(new Set([...seenNotifications, ...ids])).slice(-150); setSeenNotifications(next); try { localStorage.setItem(notificationStorageKey, JSON.stringify(next)) } catch { /* private browsing can disable storage */ } }
+  useEffect(() => { if (!notificationsOpen) return; const outside = (event: MouseEvent) => { if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) setNotificationsOpen(false) }; const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setNotificationsOpen(false) }; document.addEventListener('mousedown', outside); document.addEventListener('keydown', escape); return () => { document.removeEventListener('mousedown', outside); document.removeEventListener('keydown', escape) } }, [notificationsOpen])
 
   return <div className="app">
     <aside className="sidebar">
@@ -113,16 +128,19 @@ export default function App({ uid, workspace, user }: { uid: string | null; work
       </nav>
       <div className="sidebar-foot">
         <div className="sync"><span></span><div><b>Firebase workspace</b><small>Connected session</small></div></div>
-        <div className="account-area" ref={accountRef}><button type="button" className="user account-trigger" aria-expanded={accountOpen} aria-label="Open account menu" onClick={()=>setAccountOpen(o=>!o)}><span className="user-avatar">{initials}</span><span className="user-details"><b>{accountName}</b><small>{workspace.role}</small></span><span aria-hidden="true">•••</span></button>{accountOpen && accountMenu}</div>
+        <div className="account-area" ref={accountRef}><button type="button" className="user account-trigger" aria-expanded={accountOpen} aria-label="Open account menu" onClick={()=>setAccountOpen(o=>!o)}><span className="user-avatar">{initials}</span><span className="user-details"><b title={accountName}>{compactName}</b><small>{roleLabel}</small></span><span aria-hidden="true">•••</span></button>{accountOpen && accountMenu}</div>
       </div>
     </aside>
 
     <main>
       <header>
         <div><p className="breadcrumb">Workspace <span>/</span> {active}</p><h1>{active}</h1></div>
-        <div className="header-actions"><button className="mobile-account-button" onClick={()=>setAccountOpen(o=>!o)} aria-label="Account options" aria-expanded={accountOpen}>{initials}</button>
-          <button className="lang">EN <span>⌄</span></button>
-          <button className="bell" aria-label="Notifications"><Icon name="bell"/><i></i></button>
+        <div className="header-actions"><button className="mobile-account-button" onClick={()=>{setNotificationsOpen(false);setAccountOpen(o=>!o)}} aria-label="Account options" aria-expanded={accountOpen}>{initials}</button>
+          <span className="language-indicator" title="The interface currently supports English">EN</span>
+          <div className="notification-area" ref={notificationsRef}>
+            <button type="button" className="bell" aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`} aria-expanded={notificationsOpen} onClick={()=>{setAccountOpen(false);setNotificationsOpen(v=>!v)}}><Icon name="bell"/>{unreadCount>0&&<span className="notification-count">{unreadCount>9?'9+':unreadCount}</span>}</button>
+            {notificationsOpen&&<section className="notification-popover" aria-label="Notifications"><div className="notification-heading"><strong>Notifications</strong><button type="button" onClick={()=>setNotificationsOpen(false)} aria-label="Close notifications">×</button></div><div className="notification-summary">{unreadCount ? `${unreadCount} unread alert${unreadCount===1?'':'s'}` : 'You are all caught up'}</div>{notifications.length===0?<p className="notification-empty">No active stock or order alerts.</p>:<div className="notification-items">{notifications.map(n=><button type="button" key={n.id} className={`notification-item ${seenNotifications.includes(n.id)?'is-read':''}`} onClick={()=>{acknowledge([n.id]);setActive(n.destination);setNotificationsOpen(false)}}><strong>{n.title}</strong><small>{n.detail}</small></button>)}</div>}{unreadCount>0&&<button type="button" className="mark-all" onClick={()=>acknowledge(notifications.map(n=>n.id))}>Mark all as read</button>}<p className="notification-footnote">Based on current Firestore records · read status saved on this device</p></section>}
+          </div>
           <button className="primary" disabled={!canSell} onClick={()=>setActive('POS')}>Open POS <Icon name="arrow"/></button>
         </div>
       </header>
@@ -158,7 +176,7 @@ export default function App({ uid, workspace, user }: { uid: string | null; work
         </article>
 
         <article className="panel stock">
-          <div className="panel-head"><div><h3>Low stock</h3><p>{lowStock.length} items need attention</p></div><button onClick={()=>setActive('Inventory')}>Inventory <Icon name="arrow"/></button></div>
+          <div className="panel-head"><div><h3>Low stock</h3><p>{lowStock.length} items need attention</p></div>{isManager&&<button onClick={()=>setActive('Inventory')}>Inventory <Icon name="arrow"/></button>}</div>
           {lowStock.slice(0, 3).map(x=>[x.name, `${x.qty} ${x.unit}`, `${x.min} ${x.unit}`, x.qty < x.min / 2 ? 'Critical' : 'Low']).map(([a,b,c,d])=><div className="stock-row" key={a}><span>{a.slice(0,2).toUpperCase()}</span><div><b>{a}</b><small>{b} remaining · Reorder at {c}</small></div><em className={d==='Critical'?'critical':''}>{d}</em></div>)}
         </article>
       </section>
