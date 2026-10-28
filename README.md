@@ -100,3 +100,10 @@ Or use GitHub's **Add file > Upload files** to upload the extracted files and fo
 - **Important:** These values are orders, not verified completed sales or settled payments. The chart and payment visualizations are still illustrative. Stock deduction, multi-user venues, role-based access, and transaction-safe order creation are not implemented.
 - No new Firebase environment variables or security-rule changes are needed for this update.
 - This archive was source-inspected, but **not build-verified**: dependencies were unavailable in the execution environment. Run `npm install && npm run build` before deploying and test on a preview deployment first.
+
+
+## Inventory item creation (this update)
+
+Sign in, open **Inventory**, and choose **+ Add inventory item**. Enter a unique item name, category, unit, opening quantity, reorder level, and optionally unit cost in UGX. Choose **Save inventory item**. The item appears in the inventory table and is stored under `users/{uid}/inventory/{item name}` in Firestore using the existing security rules. **Edit** updates an item and **Stock in** adds quantities. Changes become available after Vercel builds this revision.
+
+**Important:** The database remains isolated per signed-in account. Menu sales do not yet deduct stock, and this update does not implement inventory accounting, simultaneous-write conflict resolution, or staff permissions. Do not treat the inventory as authoritative stock records for multiple concurrent cashiers until those are implemented.
