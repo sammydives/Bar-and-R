@@ -34,3 +34,5 @@ main{margin-left:244px;min-width:0;padding-bottom:24px}header{height:79px;paddin
 .member-form { display:flex;flex-wrap:wrap;gap:10px;margin:12px 0 20px }
 .member-form input {flex:1 1 250px;min-width:0;padding:9px}
 .member-form select {padding:9px}
+
+.station-ticket{border:1px solid var(--line, #dedede);border-radius:12px;padding:12px;margin:10px 0}.station-ticket p{margin:4px 0 10px}

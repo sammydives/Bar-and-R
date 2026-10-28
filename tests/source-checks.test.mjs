@@ -13,7 +13,7 @@ test('Venue membership is required for shared data', () => {
   assert.match(rules, /function isActive\(venueId\)/)
   assert.match(rules, /get\(memberPath\(venueId, request\.auth\.uid\)\)\.data\.enabled == true/)
   assert.match(rules, /allow write: if isManager\(venueId\)/)
-  assert.match(rules, /allowedStatusUpdate\(\)/)
+  assert.match(rules, /canUpdateStation\(venueId\)/)
 })
 test('Migration is opt-in, copies old collections and does not delete originals', () => {
   const source=read('src/lib/VenueGate.tsx')

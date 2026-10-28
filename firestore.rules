@@ -18,9 +18,13 @@ service cloud.firestore {
     function isPreparation(venueId) {
       return isActive(venueId) && get(memberPath(venueId, request.auth.uid)).data.role in ['kitchen','bar'];
     }
-    function allowedStatusUpdate() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-        && request.resource.data.status in ['Preparing','Ready','Served'];
+    function canUpdateStation(venueId) {
+      let role = get(memberPath(venueId, request.auth.uid)).data.role;
+      return isActive(venueId) && role in ['kitchen', 'bar']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['preparation'])
+        && resource.data.keys().hasAny(['preparation'])
+        && request.resource.data.preparation.diff(resource.data.preparation).affectedKeys().hasOnly([role == 'kitchen' ? 'Kitchen' : 'Bar'])
+        && request.resource.data.preparation[role == 'kitchen' ? 'Kitchen' : 'Bar'] in ['Preparing','Ready'];
     }
     // Compatibility: never delete or alter existing personal records in an automatic migration.
     match /users/{userId} {
@@ -57,7 +61,7 @@ service cloud.firestore {
       match /orders/{id} {
         allow read: if isActive(venueId);
         allow create: if canTakeOrders(venueId);
-        allow update: if canTakeOrders(venueId) || (isPreparation(venueId) && allowedStatusUpdate());
+        allow update: if canTakeOrders(venueId) || (canUpdateStation(venueId));
         allow delete: if isManager(venueId);
       }
       match /menu/{id} {
