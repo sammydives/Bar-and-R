@@ -113,3 +113,8 @@ Sign in, open **Inventory**, and choose **+ Add inventory item**. Enter a unique
 ## Shared venue milestone
 
 See [DEPLOY-SHARED-VENUE.md](./DEPLOY-SHARED-VENUE.md) for migration safeguards, staff roles, the new Firestore rules, deployment verification, and known limitations. Do **not** activate a venue before your Firestore backup is verified and the updated rules are published.
+
+
+## Stock deduction release
+
+See `RELEASE-STOCK-DEDUCTIONS.md` for the Cloud Function deployment order, required Firebase Blaze billing, recipe mapping format, and limitations.

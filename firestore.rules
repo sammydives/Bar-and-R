@@ -60,7 +60,7 @@ service cloud.firestore {
       }
       match /orders/{id} {
         allow read: if isActive(venueId);
-        allow create: if canTakeOrders(venueId);
+        allow create: if false; // Orders must pass the trusted placeStockOrder function.
         allow update: if canTakeOrders(venueId) || (canUpdateStation(venueId));
         allow delete: if isManager(venueId);
       }
