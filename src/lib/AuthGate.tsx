@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode, type FormEvent } from 'react'
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, type User } from 'firebase/auth'
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, type User } from 'firebase/auth'
 import { auth, configured } from './firebase'
 
-export function AuthGate({ children }: { children: (uid: string | null) => ReactNode }) {
+export function AuthGate({ children }: { children: (user: User | null) => ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(configured)
   const [error, setError] = useState('')
@@ -26,5 +26,5 @@ export function AuthGate({ children }: { children: (uid: string | null) => React
   if (!configured) return <div className="setup-gate"><h1>B&R Hospitality</h1><p>Firebase is not configured. Copy <code>.env.example</code> to <code>.env.local</code> and enter your Firebase web app values. Read <code>README.md</code> for instructions.</p></div>
   if (loading) return <div className="setup-gate">Checking your session…</div>
   if (!user) return <div className="setup-gate"><form onSubmit={submit} className="login-card"><h1>B&R Hospitality</h1><p>{registering ? 'Create your workspace account' : 'Sign in to your workspace'}</p><label>Email<input name="email" type="email" required autoComplete="email" /></label><label>Password<input name="password" type="password" minLength={6} required autoComplete={registering ? 'new-password' : 'current-password'} /></label>{error && <p role="alert" className="auth-error">{error}</p>}<button className="primary" type="submit">{registering ? 'Create account' : 'Sign in'}</button><button type="button" className="auth-switch" onClick={() => { setError(''); setRegistering(!registering) }}>{registering ? 'Already have an account? Sign in' : 'Create an account'}</button></form></div>
-  return <><div className="auth-toolbar"><span>{user.email}</span><button onClick={() => { if (auth) void signOut(auth) }}>Sign out</button></div>{children(user.uid)}</>
+  return <>{children(user)}</>
 }

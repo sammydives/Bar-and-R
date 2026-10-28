@@ -1,5 +1,7 @@
 import type { Workspace } from './lib/VenueGate'
-import { useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { updateProfile, signOut, type User } from 'firebase/auth'
+import { auth } from './lib/firebase'
 import WorkspacePages from './WorkspacePages'
 import { useCloudCollection } from './lib/useCollection'
 
@@ -39,10 +41,55 @@ const Stat = ({ label, value, note, tone }: {label:string,value:string,note:stri
   </article>
 )
 
-export default function App({ uid, workspace }: { uid: string | null; workspace: Workspace }) {
+export default function App({ uid, workspace, user }: { uid: string | null; workspace: Workspace; user: User }) {
   const [active, setActive] = useState('Overview')
   const [range, setRange] = useState('Today')
   const [venue, setVenue] = useState('My Venue')
+  const [accountOpen, setAccountOpen] = useState(false)
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [profileName, setProfileName] = useState(user.displayName || '')
+  const [visibleName, setVisibleName] = useState(user.displayName || '')
+  const [profileError, setProfileError] = useState('')
+  const [profileNotice, setProfileNotice] = useState('')
+  const [profileBusy, setProfileBusy] = useState(false)
+  const accountRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { setVisibleName(user.displayName || ''); setProfileName(user.displayName || '') }, [user.uid, user.displayName])
+  useEffect(() => {
+    if (!accountOpen) return
+    const close = (event: MouseEvent) => { if (accountRef.current && !accountRef.current.contains(event.target as Node)) setAccountOpen(false) }
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setAccountOpen(false); setEditingProfile(false) } }
+    document.addEventListener('mousedown', close); document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', escape) }
+  }, [accountOpen])
+  const accountName = visibleName.trim() || user.email?.split('@')[0] || 'Account'
+  const initials = accountName.split(/\s+/).slice(0,2).map(part=>part[0]?.toUpperCase() || '').join('')
+  async function saveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const name = profileName.trim().replace(/\s+/g,' ')
+    if (name.length < 2 || name.length > 60) { setProfileError('Enter a name between 2 and 60 characters.'); return }
+    setProfileError(''); setProfileNotice(''); setProfileBusy(true)
+    try { await updateProfile(user, { displayName: name }); setVisibleName(name); setProfileName(name); setEditingProfile(false); setProfileNotice('Your display name was saved.') }
+    catch (err) { setProfileError(err instanceof Error ? err.message : 'Unable to update your name.') }
+    finally { setProfileBusy(false) }
+  }
+  async function logout() {
+    setProfileError('')
+    try { if (auth) await signOut(auth) }
+    catch (err) { setProfileError(err instanceof Error ? err.message : 'Could not sign out.') }
+  }
+  const accountMenu = <div className="account-menu" role="region" aria-label="Account options">
+    <strong>{accountName}</strong>
+    <span className="account-email">{user.email || 'No email available'}</span>
+    <span className="account-role">Role: {workspace.role.charAt(0).toUpperCase()+workspace.role.slice(1)}</span>
+    {editingProfile ? <form onSubmit={saveProfile} className="account-edit-form">
+      <label htmlFor="profile-display-name">Display name</label>
+      <input id="profile-display-name" maxLength={60} autoComplete="name" required value={profileName} onChange={e=>setProfileName(e.target.value)} />
+      <div className="account-edit-actions"><button type="submit" disabled={profileBusy}>Save name</button><button type="button" onClick={()=>{setEditingProfile(false);setProfileError('')}}>Cancel</button></div>
+    </form> : <button type="button" className="account-menu-action" onClick={()=>{setProfileName(visibleName);setEditingProfile(true);setProfileError('');setProfileNotice('')}}>Edit display name</button>}
+    {profileError && <p className="account-error" role="alert">{profileError}</p>}
+    {profileNotice && <p className="account-success" role="status">{profileNotice}</p>}
+    <button type="button" className="account-menu-action account-logout" onClick={()=>void logout()}>Log out</button>
+  </div>
   const [orders] = useCloudCollection(uid, 'orders', [] as {id:number;status:string;total:number;table:string;staff:string;items:string;createdAt?:string}[], x=>String(x.id))
   const [stock] = useCloudCollection(uid, 'inventory', [] as {name:string;qty:number;min:number;unit:string}[], x=>x.name)
   const isManager = workspace.role === 'manager'
@@ -56,8 +103,8 @@ export default function App({ uid, workspace }: { uid: string | null; workspace:
     <aside className="sidebar">
       <div className="brand"><span>B&R</span><small>HOSPITALITY</small></div>
       <div className="venue-switch">
-        <span className="venue-logo">CL</span>
-        <div><b>{venue}</b><small>Kampala, Uganda</small></div>
+        <span className="venue-logo">B&R</span>
+        <div><b>{venue}</b><small>Restaurant workspace</small></div>
         <span className="chev">⌄</span>
       </div>
       <nav>
@@ -66,19 +113,20 @@ export default function App({ uid, workspace }: { uid: string | null; workspace:
       </nav>
       <div className="sidebar-foot">
         <div className="sync"><span></span><div><b>Firebase workspace</b><small>Connected session</small></div></div>
-        <div className="user"><span>AN</span><div><b>Amara N.</b><small>{workspace.role}</small></div><button aria-label="Open account menu">•••</button></div>
+        <div className="account-area" ref={accountRef}><button type="button" className="user account-trigger" aria-expanded={accountOpen} aria-label="Open account menu" onClick={()=>setAccountOpen(o=>!o)}><span className="user-avatar">{initials}</span><span className="user-details"><b>{accountName}</b><small>{workspace.role}</small></span><span aria-hidden="true">•••</span></button>{accountOpen && accountMenu}</div>
       </div>
     </aside>
 
     <main>
       <header>
         <div><p className="breadcrumb">Workspace <span>/</span> {active}</p><h1>{active}</h1></div>
-        <div className="header-actions">
+        <div className="header-actions"><button className="mobile-account-button" onClick={()=>setAccountOpen(o=>!o)} aria-label="Account options" aria-expanded={accountOpen}>{initials}</button>
           <button className="lang">EN <span>⌄</span></button>
           <button className="bell" aria-label="Notifications"><Icon name="bell"/><i></i></button>
           <button className="primary" disabled={!canSell} onClick={()=>setActive('POS')}>Open POS <Icon name="arrow"/></button>
         </div>
       </header>
+      {accountOpen && <div className="mobile-account-menu">{accountMenu}</div>}
 
       <div className="mobile-nav">{visibleNav.map(([,label])=><button key={label} className={active===label?'selected':''} onClick={()=>setActive(label)}>{label}</button>)}</div>
       <div hidden={active!=='Overview'}>
@@ -96,31 +144,12 @@ export default function App({ uid, workspace }: { uid: string | null; workspace:
 
       <section className="content-grid">
         <article className="panel sales">
-          <div className="panel-head"><div><h3>Sales overview (illustration)</h3><p>Revenue by hour · {range}</p></div><b>UGX 4.82M</b></div>
-          <div className="chart">
-            <div className="y-axis"><span>1.2M</span><span>800K</span><span>400K</span><span>0</span></div>
-            <div className="plot">
-              <div className="grid-lines"><i/><i/><i/><i/></div>
-              <svg viewBox="0 0 800 220" preserveAspectRatio="none">
-                <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#99752f" stopOpacity=".26"/><stop offset="1" stopColor="#99752f" stopOpacity="0"/></linearGradient></defs>
-                <path className="area" d="M0 205 C80 200 80 185 145 190 S230 160 285 175 S355 120 420 140 S500 75 560 105 S650 28 705 55 S755 36 800 22 L800 220 L0 220Z"/>
-                <path className="line" d="M0 205 C80 200 80 185 145 190 S230 160 285 175 S355 120 420 140 S500 75 560 105 S650 28 705 55 S755 36 800 22"/>
-                <circle cx="705" cy="55" r="5"/>
-              </svg>
-              <div className="x-axis"><span>9am</span><span>11am</span><span>1pm</span><span>3pm</span><span>5pm</span><span>7pm</span><span>Now</span></div>
-            </div>
-          </div>
+          <div className="panel-head"><div><h3>Sales overview</h3><p>Recorded orders · {range}</p></div><b>UGX {totalSales.toLocaleString('en-UG')}</b></div>
+          <p className="empty">{periodOrders.length ? `${periodOrders.length} recorded orders in this period. This is order value, not confirmed paid revenue.` : 'No recorded orders in this period.'}</p>
         </article>
-
         <article className="panel payments">
-          <div className="panel-head"><div><h3>Payments (illustration)</h3><p>Today’s breakdown</p></div><button onClick={()=>setActive('Reports')}>View report <Icon name="arrow"/></button></div>
-          <div className="donut-wrap"><div className="donut"><span><b>UGX</b><strong>4.82M</strong><small>Total</small></span></div>
-          <ul>
-            <li><i className="cash"/><span>Cash</span><b>UGX 1.93M</b><small>40%</small></li>
-            <li><i className="mtn"/><span>MTN MoMo</span><b>UGX 1.45M</b><small>30%</small></li>
-            <li><i className="card"/><span>Card</span><b>UGX 965K</b><small>20%</small></li>
-            <li><i className="airtel"/><span>Airtel Money</span><b>UGX 482K</b><small>10%</small></li>
-          </ul></div>
+          <div className="panel-head"><div><h3>Payments</h3><p>Payment tracking is not connected yet</p></div></div>
+          <p className="empty">No verified payment breakdown is available. Payment totals will appear after billing and settlement are implemented.</p>
         </article>
 
         <article className="panel orders">

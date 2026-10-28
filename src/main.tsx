@@ -6,5 +6,5 @@ import './index.css'
 import { VenueGate } from './lib/VenueGate'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><AuthGate>{uid => uid ? <VenueGate uid={uid}>{workspace => <App uid={workspace.scope} workspace={workspace} />}</VenueGate> : null}</AuthGate></React.StrictMode>
+  <React.StrictMode><AuthGate>{user => user ? <VenueGate uid={user.uid}>{workspace => <App uid={workspace.scope} workspace={workspace} user={user} />}</VenueGate> : null}</AuthGate></React.StrictMode>
 )
