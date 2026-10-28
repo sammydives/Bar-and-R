@@ -1,3 +1,4 @@
+import type { Workspace } from './lib/VenueGate'
 import { useState } from 'react'
 import WorkspacePages from './WorkspacePages'
 import { useCloudCollection } from './lib/useCollection'
@@ -38,12 +39,15 @@ const Stat = ({ label, value, note, tone }: {label:string,value:string,note:stri
   </article>
 )
 
-export default function App({ uid }: { uid: string | null }) {
+export default function App({ uid, workspace }: { uid: string | null; workspace: Workspace }) {
   const [active, setActive] = useState('Overview')
   const [range, setRange] = useState('Today')
   const [venue, setVenue] = useState('My Venue')
   const [orders] = useCloudCollection(uid, 'orders', [] as {id:number;status:string;total:number;table:string;staff:string;items:string;createdAt?:string}[], x=>String(x.id))
   const [stock] = useCloudCollection(uid, 'inventory', [] as {name:string;qty:number;min:number;unit:string}[], x=>x.name)
+  const isManager = workspace.role === 'manager'
+  const canSell = isManager || workspace.role === 'waiter'
+  const visibleNav = nav.filter(([,label]) => isManager || !['Inventory','Reports','Staff & roles','Settings'].includes(label))
   const periodOrders = orders.filter(order=>isWithin(order.createdAt,range)&&order.status!=='Cancelled')
   const totalSales = periodOrders.reduce((sum, order) => sum + order.total, 0)
   const lowStock = stock.filter(item => item.qty < item.min)
@@ -58,11 +62,11 @@ export default function App({ uid }: { uid: string | null }) {
       </div>
       <nav>
         <p className="nav-label">WORKSPACE</p>
-        {nav.map(([icon,label]) => <button key={label} className={active === label ? 'active' : ''} onClick={()=>setActive(label)}><Icon name={icon}/><span>{label}</span>{label==='Inventory' && <i>{lowStock.length}</i>}</button>)}
+        {visibleNav.map(([icon,label]) => <button key={label} className={active === label ? 'active' : ''} onClick={()=>setActive(label)}><Icon name={icon}/><span>{label}</span>{label==='Inventory' && <i>{lowStock.length}</i>}</button>)}
       </nav>
       <div className="sidebar-foot">
         <div className="sync"><span></span><div><b>Firebase workspace</b><small>Connected session</small></div></div>
-        <div className="user"><span>AN</span><div><b>Amara N.</b><small>Owner</small></div><button aria-label="Open account menu">•••</button></div>
+        <div className="user"><span>AN</span><div><b>Amara N.</b><small>{workspace.role}</small></div><button aria-label="Open account menu">•••</button></div>
       </div>
     </aside>
 
@@ -72,11 +76,11 @@ export default function App({ uid }: { uid: string | null }) {
         <div className="header-actions">
           <button className="lang">EN <span>⌄</span></button>
           <button className="bell" aria-label="Notifications"><Icon name="bell"/><i></i></button>
-          <button className="primary" onClick={()=>setActive('POS')}>Open POS <Icon name="arrow"/></button>
+          <button className="primary" disabled={!canSell} onClick={()=>setActive('POS')}>Open POS <Icon name="arrow"/></button>
         </div>
       </header>
 
-      <div className="mobile-nav">{nav.map(([,label])=><button key={label} className={active===label?'selected':''} onClick={()=>setActive(label)}>{label}</button>)}</div>
+      <div className="mobile-nav">{visibleNav.map(([,label])=><button key={label} className={active===label?'selected':''} onClick={()=>setActive(label)}>{label}</button>)}</div>
       <div hidden={active!=='Overview'}>
       <section className="welcome">
         <div><h2>Welcome to your workspace</h2><p>Here’s how <b>{venue}</b> is doing today.</p></div>
@@ -130,7 +134,7 @@ export default function App({ uid }: { uid: string | null }) {
         </article>
       </section>
       </div>
-      <WorkspacePages active={active} venue={venue} setVenue={setVenue} uid={uid} />
+      <WorkspacePages active={active} venue={venue} setVenue={setVenue} uid={uid} workspace={workspace} />
       <footer>Powered by <b>B&R</b><span>•</span> Firebase-enabled workspace</footer>
     </main>
   </div>

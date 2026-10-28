@@ -14,7 +14,7 @@ export function useCloudCollection<T extends object>(uid: string | null, name: s
     ref.current = uid ? [] : demoRows
     setRows(uid ? [] : demoRows)
     if (!uid || !db) return
-    const path = collection(db, 'users', uid, name)
+    const path = uid.startsWith('venue:') ? collection(db, 'venues', uid.slice(6), name) : collection(db, 'users', uid, name)
     return onSnapshot(path, snap => {
       const next = snap.docs.map(d => d.data() as T)
       ref.current = next
@@ -36,14 +36,14 @@ export function useCloudCollection<T extends object>(uid: string | null, name: s
     let changes = 0
     for (const [id, row] of after) {
       if (JSON.stringify(row) !== JSON.stringify(before.get(id))) {
-        batch.set(doc(db, 'users', uid, name, id), row)
+        batch.set(uid.startsWith('venue:') ? doc(db, 'venues', uid.slice(6), name, id) : doc(db, 'users', uid, name, id), row)
         changes++
       }
     }
-    for (const id of before.keys()) if (!after.has(id)) { batch.delete(doc(db, 'users', uid, name, id)); changes++ }
+    for (const id of before.keys()) if (!after.has(id)) { batch.delete(uid.startsWith('venue:') ? doc(db, 'venues', uid.slice(6), name, id) : doc(db, 'users', uid, name, id)); changes++ }
     if (changes > 0) {
       if (changes > 450) { setError('Too many changes at once. Please contact support.'); return }
-      void batch.commit().catch(err => { setError(`Unable to save ${name}: ${err.message}`) })
+      void batch.commit().catch(err => { ref.current = previous; setRows(previous); setError(`Unable to save ${name}: ${err.message}`) })
     }
   }
   return [rows, setCloudRows, error]

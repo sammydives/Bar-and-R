@@ -107,3 +107,7 @@ Or use GitHub's **Add file > Upload files** to upload the extracted files and fo
 Sign in, open **Inventory**, and choose **+ Add inventory item**. Enter a unique item name, category, unit, opening quantity, reorder level, and optionally unit cost in UGX. Choose **Save inventory item**. The item appears in the inventory table and is stored under `users/{uid}/inventory/{item name}` in Firestore using the existing security rules. **Edit** updates an item and **Stock in** adds quantities. Changes become available after Vercel builds this revision.
 
 **Important:** The database remains isolated per signed-in account. Menu sales do not yet deduct stock, and this update does not implement inventory accounting, simultaneous-write conflict resolution, or staff permissions. Do not treat the inventory as authoritative stock records for multiple concurrent cashiers until those are implemented.
+
+## Shared venue milestone
+
+See [DEPLOY-SHARED-VENUE.md](./DEPLOY-SHARED-VENUE.md) for migration safeguards, staff roles, the new Firestore rules, deployment verification, and known limitations. Do **not** activate a venue before your Firestore backup is verified and the updated rules are published.

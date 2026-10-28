@@ -1,9 +1,78 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Each authenticated account can access only its own workspace data.
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function signedIn() { return request.auth != null; }
+    function memberPath(venueId, uid) {
+      return /databases/$(database)/documents/venues/$(venueId)/members/$(uid);
+    }
+    function isActive(venueId) {
+      return signedIn() && exists(memberPath(venueId, request.auth.uid))
+        && get(memberPath(venueId, request.auth.uid)).data.enabled == true;
+    }
+    function isManager(venueId) {
+      return isActive(venueId) && get(memberPath(venueId, request.auth.uid)).data.role == 'manager';
+    }
+    function canTakeOrders(venueId) {
+      return isManager(venueId) || (isActive(venueId) && get(memberPath(venueId, request.auth.uid)).data.role == 'waiter');
+    }
+    function isPreparation(venueId) {
+      return isActive(venueId) && get(memberPath(venueId, request.auth.uid)).data.role in ['kitchen','bar'];
+    }
+    function allowedStatusUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['Preparing','Ready','Served'];
+    }
+    // Compatibility: never delete or alter existing personal records in an automatic migration.
+    match /users/{userId} {
+      allow read, create, update: if signedIn() && request.auth.uid == userId;
+      allow delete: if false;
+      match /{document=**} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
+    }
+    match /venues/{venueId} {
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.schemaVersion == 1;
+      allow read: if isActive(venueId) || (signedIn() && resource.data.ownerId == request.auth.uid);
+      allow update: if isManager(venueId)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.schemaVersion == resource.data.schemaVersion;
+      allow delete: if false;
+      match /members/{memberId} {
+        allow get: if signedIn() && (request.auth.uid == memberId || isManager(venueId));
+        allow list: if isManager(venueId);
+        // Owner bootstrap; manager can then invite other Firebase UIDs.
+        allow create: if signedIn() && (
+          (request.auth.uid == memberId && getAfter(/databases/$(database)/documents/venues/$(venueId)).data.ownerId == request.auth.uid
+            && request.resource.data.role == 'manager' && request.resource.data.enabled == true)
+          || (isManager(venueId) && memberId != get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId
+            && request.resource.data.role in ['manager','waiter','kitchen','bar'])
+        );
+        allow update: if isManager(venueId)
+          && memberId != get(/databases/$(database)/documents/venues/$(venueId)).data.ownerId
+          && request.resource.data.role in ['manager','waiter','kitchen','bar']
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role','enabled']);
+        allow delete: if false;
+      }
+      match /orders/{id} {
+        allow read: if isActive(venueId);
+        allow create: if canTakeOrders(venueId);
+        allow update: if canTakeOrders(venueId) || (isPreparation(venueId) && allowedStatusUpdate());
+        allow delete: if isManager(venueId);
+      }
+      match /menu/{id} {
+        allow read: if isActive(venueId);
+        allow write: if isManager(venueId);
+      }
+      match /inventory/{id} {
+        allow read: if isActive(venueId);
+        allow write: if isManager(venueId);
+      }
+      match /staff/{id} {
+        allow read: if isActive(venueId);
+        allow write: if isManager(venueId);
+      }
+      match /{document=**} { allow read, write: if false; }
     }
     match /{document=**} { allow read, write: if false; }
   }
