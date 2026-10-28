@@ -128,7 +128,7 @@ export default function App({ uid, workspace, user }: { uid: string | null; work
       </nav>
       <div className="sidebar-foot">
         <div className="sync"><span></span><div><b>Firebase workspace</b><small>Connected session</small></div></div>
-        <div className="account-area" ref={accountRef}><button type="button" className="user account-trigger" aria-expanded={accountOpen} aria-label="Open account menu" onClick={()=>setAccountOpen(o=>!o)}><span className="user-avatar">{initials}</span><span className="user-details"><b title={accountName}>{compactName}</b><small>{roleLabel}</small></span><span aria-hidden="true">•••</span></button>{accountOpen && accountMenu}</div>
+        <div className="account-area" ref={accountRef}><button type="button" className="user account-trigger" aria-expanded={accountOpen} aria-label="Open account menu" onClick={()=>setAccountOpen(o=>!o)}><span className="user-avatar">{initials}</span><span className="user-details"><b title={accountName}>{compactName}</b><small>{roleLabel}</small></span><span className="account-more" aria-hidden="true">•••</span></button>{accountOpen && accountMenu}</div>
       </div>
     </aside>
 
