@@ -1,3 +1,5 @@
+> **Latest update:** See [NEXT-RELEASE.md](NEXT-RELEASE.md) for simplified restaurant setup, invitation links, and deployment cautions.
+
 # B&R Hospitality — Firebase + Vercel starter
 
 React 19 / TypeScript / Vite hospitality dashboard, adapted from the supplied prototype.
