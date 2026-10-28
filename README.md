@@ -90,3 +90,13 @@ Or use GitHub's **Add file > Upload files** to upload the extracted files and fo
 - `firebase.json` — optional Firebase CLI rules deployment.
 - `vercel.json` — Vercel build and SPA fallback.
 - `.env.example` — configuration keys only, no real credentials.
+
+## Milestone 1 update (2026-10-28)
+
+- Newly created POS orders include `createdAt` and structured `lineItems` so that time-based order reporting can use actual records.
+- Reports display recorded order totals and item quantities from Firestore data rather than demo figures; CSV exports recorded orders for the selected date range.
+- Overview summary totals use the selected date range, and the recent-orders panel displays Firestore orders.
+- Existing orders without `createdAt` are deliberately excluded from date-filtered reports rather than assigned an invented date.
+- **Important:** These values are orders, not verified completed sales or settled payments. The chart and payment visualizations are still illustrative. Stock deduction, multi-user venues, role-based access, and transaction-safe order creation are not implemented.
+- No new Firebase environment variables or security-rule changes are needed for this update.
+- This archive was source-inspected, but **not build-verified**: dependencies were unavailable in the execution environment. Run `npm install && npm run build` before deploying and test on a preview deployment first.

@@ -18,6 +18,14 @@ const Icon = ({ name }: { name: string }) => {
   return <svg className="icon" viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>
 }
 
+const isWithin = (value: string | undefined, range: string) => {
+  if (!value) return false
+  const time = Date.parse(value)
+  const start = new Date()
+  start.setHours(0,0,0,0)
+  start.setDate(start.getDate()-(range==='Today'?0:range==='7 days'?6:29))
+  return Number.isFinite(time) && time >= start.getTime() && time <= Date.now()
+}
 const nav = [
   ['grid','Overview'],['orders','Orders'],['menu','Menu'],['stock','Inventory'],
   ['report','Reports'],['users','Staff & roles'],['settings','Settings']
@@ -34,9 +42,10 @@ export default function App({ uid }: { uid: string | null }) {
   const [active, setActive] = useState('Overview')
   const [range, setRange] = useState('Today')
   const [venue, setVenue] = useState('My Venue')
-  const [orders] = useCloudCollection(uid, 'orders', [] as {id:number;status:string;total:number;table:string;staff:string;items:string}[], x=>String(x.id))
+  const [orders] = useCloudCollection(uid, 'orders', [] as {id:number;status:string;total:number;table:string;staff:string;items:string;createdAt?:string}[], x=>String(x.id))
   const [stock] = useCloudCollection(uid, 'inventory', [] as {name:string;qty:number;min:number;unit:string}[], x=>x.name)
-  const totalSales = orders.reduce((sum, order) => sum + order.total, 0)
+  const periodOrders = orders.filter(order=>isWithin(order.createdAt,range)&&order.status!=='Cancelled')
+  const totalSales = periodOrders.reduce((sum, order) => sum + order.total, 0)
   const lowStock = stock.filter(item => item.qty < item.min)
 
   return <div className="app">
@@ -75,8 +84,8 @@ export default function App({ uid }: { uid: string | null }) {
       </section>
 
       <section className="stats">
-        <Stat label="Revenue" value={`UGX ${totalSales.toLocaleString('en-UG')}`} note="Orders recorded in this workspace" />
-        <Stat label="Orders today" value={String(orders.length)} note="Recorded orders" />
+        <Stat label="Revenue" value={`UGX ${totalSales.toLocaleString('en-UG')}`} note="Recorded order value (not paid revenue)" />
+        <Stat label="Orders today" value={String(periodOrders.length)} note={`Orders · ${range}`} />
         <Stat label="Open tables" value="Demo" note="Table occupancy not connected" tone="amber" />
         <Stat label="Low stock" value={`${lowStock.length} items`} note="Needs your attention" tone="red" />
       </section>
@@ -111,10 +120,8 @@ export default function App({ uid }: { uid: string | null }) {
         </article>
 
         <article className="panel orders">
-          <div className="panel-head"><div><h3>Sample order display</h3><p>Updated in real time</p></div><button onClick={()=>setActive('Orders')}>View all <Icon name="arrow"/></button></div>
-          <div className="order-row"><span className="table">T12</span><div><b>Table 12</b><small>6 items · Sarah K.</small></div><time>08:42</time><em className="preparing">Preparing</em><strong>UGX 128,000</strong></div>
-          <div className="order-row"><span className="table">T04</span><div><b>Table 04</b><small>3 items · Daniel M.</small></div><time>04:18</time><em className="ready">Ready</em><strong>UGX 76,500</strong></div>
-          <div className="order-row"><span className="table">T19</span><div><b>Table 19</b><small>8 items · Grace A.</small></div><time>01:56</time><em className="new">New</em><strong>UGX 214,000</strong></div>
+          <div className="panel-head"><div><h3>Recent orders</h3><p>Updated from Firestore</p></div><button onClick={()=>setActive('Orders')}>View all <Icon name="arrow"/></button></div>
+          {orders.length===0?<p className="empty">No orders recorded yet.</p>:orders.slice().sort((a,b)=>(b.createdAt??'').localeCompare(a.createdAt??'')).slice(0,3).map(o=><div className="order-row" key={o.id}><span className="table">T{o.table}</span><div><b>Table {o.table}</b><small>{o.staff} · #{o.id}</small></div><time>{o.createdAt?new Date(o.createdAt).toLocaleTimeString('en-UG',{hour:'2-digit',minute:'2-digit'}):'—'}</time><em className={o.status.toLowerCase()}>{o.status}</em><strong>UGX {o.total.toLocaleString('en-UG')}</strong></div>)}
         </article>
 
         <article className="panel stock">
