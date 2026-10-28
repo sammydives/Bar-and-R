@@ -72,6 +72,11 @@ service cloud.firestore {
         allow read: if isActive(venueId);
         allow write: if isManager(venueId);
       }
+      match /settings/{settingId} {
+        allow read: if isActive(venueId);
+        allow create, update: if isManager(venueId) && settingId == 'general';
+        allow delete: if false;
+      }
       match /staff/{id} {
         allow read: if isActive(venueId);
         allow write: if isManager(venueId);

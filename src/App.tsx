@@ -4,6 +4,7 @@ import { updateProfile, signOut, type User } from 'firebase/auth'
 import { auth } from './lib/firebase'
 import WorkspacePages from './WorkspacePages'
 import { useCloudCollection } from './lib/useCollection'
+import { useVenueSettings } from './lib/useVenueSettings'
 
 const Icon = ({ name }: { name: string }) => {
   const paths: Record<string, React.ReactNode> = {
@@ -44,7 +45,8 @@ const Stat = ({ label, value, note, tone }: {label:string,value:string,note:stri
 export default function App({ uid, workspace, user }: { uid: string | null; workspace: Workspace; user: User }) {
   const [active, setActive] = useState('Overview')
   const [range, setRange] = useState('Today')
-  const [venue, setVenue] = useState('My Venue')
+  const { settings, save: saveSettings, loading: settingsLoading, error: settingsError } = useVenueSettings(uid)
+  const venue = settings.venueName
   const [accountOpen, setAccountOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [seenNotifications, setSeenNotifications] = useState<string[]>([])
@@ -181,7 +183,7 @@ export default function App({ uid, workspace, user }: { uid: string | null; work
         </article>
       </section>
       </div>
-      <WorkspacePages active={active} venue={venue} setVenue={setVenue} uid={uid} workspace={workspace} />
+      <WorkspacePages active={active} uid={uid} workspace={workspace} settings={settings} saveSettings={saveSettings} settingsLoading={settingsLoading} settingsError={settingsError} />
       <footer>Powered by <b>B&R</b><span>•</span> Firebase-enabled workspace</footer>
     </main>
   </div>
