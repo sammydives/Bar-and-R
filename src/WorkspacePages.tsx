@@ -91,22 +91,68 @@ export default function WorkspacePages({active,uid,workspace,settings,saveSettin
   }
   const notify=(text:string)=>setNotice(text)
   const submit=(e:FormEvent<HTMLFormElement>,fn:(d:FormData)=>void)=>{e.preventDefault();fn(new FormData(e.currentTarget));setModal('')}
-  const sendStockOrder = async () => {
-    if (!uid?.startsWith('venue:') || !auth?.currentUser || !db) { notify('Choose a shared restaurant workspace first.'); return }
-    if (!cart.length || sending) return
-    const selected = menu.filter(item => cart.includes(item.id))
-    if (selected.some(item => !item.recipe?.length)) { notify('Configure stock ingredients for every ordered menu item before sending.'); return }
-    const requestId = pendingRequestId ?? crypto.randomUUID()
-    setPendingRequestId(requestId)
-    setSending(true)
-    try {
-      await callable({ venueId: uid.slice(6), requestId, table, items: selected.map(item => ({ id: item.id, qty: cart.filter(id => id === item.id).length })), tax, service })
-      setCart([])
-      setPendingRequestId(null)
-      notify(`Order placed for table ${table}; stock deducted.`)
-    } catch (error) { notify(`Order not submitted: ${error instanceof Error ? error.message : 'Unknown error'}. Do not change the cart before retrying.`) }
-    finally { setSending(false) }
+ 
+const sendStockOrder = async () => {
+  if (!uid?.startsWith('venue:') || !auth?.currentUser || !db) {
+    notify('Choose a shared restaurant workspace first.')
+    return
   }
+
+  if (!cart.length || sending) return
+
+  const selected = menu.filter(item => cart.includes(item.id))
+
+  if (selected.some(item => !item.recipe?.length)) {
+    notify('Configure stock ingredients for every ordered menu item before sending.')
+    return
+  }
+
+  const requestId = pendingRequestId ?? crypto.randomUUID()
+
+  setPendingRequestId(requestId)
+  setSending(true)
+
+  try {
+    const token = await auth.currentUser.getIdToken()
+
+    const response = await fetch('/api/placeStockOrder', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        venueId: uid.slice(6),
+        requestId,
+        table,
+        items: selected.map(item => ({
+          id: item.id,
+          qty: cart.filter(id => id === item.id).length,
+        })),
+      }),
+    })
+
+    const result: { error?: string } = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      throw new Error(result.error || `Order request failed (${response.status}).`)
+    }
+
+    setCart([])
+    setPendingRequestId(null)
+
+    notify(`Order placed for table ${table}; stock deducted.`)
+  } catch (error) {
+    notify(
+      `Order not submitted: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }. Do not change the cart before retrying.`
+    )
+  } finally {
+    setSending(false)
+  }
+}
+
   const shownMenu=menu.filter(x=>x.name.toLowerCase().includes(search.toLowerCase())&&(filter==='All'||!['Mains','Starters','Drinks'].includes(filter)||x.category===filter))
   const scopedOrders = orders.filter(o => withinRange(o.createdAt, reportRange) && o.status !== 'Cancelled')
   const scopedRevenue = scopedOrders.reduce((sum,o)=>sum+o.total,0)
