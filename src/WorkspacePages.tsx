@@ -4,7 +4,6 @@ import { useState, useEffect, type ReactNode, type FormEvent } from 'react'
 import type { VenueSettings } from './lib/useVenueSettings'
 import { useCloudCollection } from './lib/useCollection'
 import { doc, updateDoc } from 'firebase/firestore'
-import { getFunctions, httpsCallable } from 'firebase/functions'
 import { auth } from './lib/firebase'
 import { db } from './lib/firebase'
 
