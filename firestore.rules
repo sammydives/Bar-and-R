@@ -26,6 +26,14 @@ service cloud.firestore {
         && request.resource.data.preparation.diff(resource.data.preparation).affectedKeys().hasOnly([role == 'kitchen' ? 'Kitchen' : 'Bar'])
         && request.resource.data.preparation[role == 'kitchen' ? 'Kitchen' : 'Bar'] in ['Preparing','Ready'];
     }
+    // Waiters and managers may only mark an order Served from the browser.
+    // Totals, payments and day totals are written by trusted Cloud Functions only.
+    function canMarkServed(venueId) {
+      return canTakeOrders(venueId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status == 'Served'
+        && resource.data.status != 'Cancelled';
+    }
     // Compatibility: never delete or alter existing personal records in an automatic migration.
     match /users/{userId} {
       allow read, create, update: if signedIn() && request.auth.uid == userId;
@@ -61,8 +69,8 @@ service cloud.firestore {
       match /orders/{id} {
         allow read: if isActive(venueId);
         allow create: if false; // Orders must pass the trusted placeStockOrder function.
-        allow update: if canTakeOrders(venueId) || (canUpdateStation(venueId));
-        allow delete: if isManager(venueId);
+        allow update: if canMarkServed(venueId) || canUpdateStation(venueId);
+        allow delete: if false; // Orders are the sales record and are never deleted.
       }
       match /menu/{id} {
         allow read: if isActive(venueId);
@@ -80,6 +88,15 @@ service cloud.firestore {
       match /staff/{id} {
         allow read: if isActive(venueId);
         allow write: if isManager(venueId);
+      }
+      // Written only by the recordPayment / closeDay functions.
+      match /dailySales/{day} {
+        allow read: if isManager(venueId);
+        allow write: if false;
+      }
+      match /stockMovements/{id} {
+        allow read: if isManager(venueId);
+        allow write: if false;
       }
       match /{document=**} { allow read, write: if false; }
     }
