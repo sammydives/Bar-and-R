@@ -100,7 +100,6 @@ export default function WorkspacePages({active,uid,workspace,settings,saveSettin
     setPendingRequestId(requestId)
     setSending(true)
     try {
-      const callable = httpsCallable(getFunctions(auth.app), 'placeStockOrder')
       await callable({ venueId: uid.slice(6), requestId, table, items: selected.map(item => ({ id: item.id, qty: cart.filter(id => id === item.id).length })), tax, service })
       setCart([])
       setPendingRequestId(null)
